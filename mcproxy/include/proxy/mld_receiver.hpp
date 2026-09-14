@@ -47,6 +47,7 @@ private:
 
 public:
     mld_receiver(proxy_instance* pr_i, std::shared_ptr<const mroute_socket> mrt_sock, std::shared_ptr<const interfaces> interfaces, bool in_debug_testing_mode);
+    ~mld_receiver();
 };
 
 #endif // MLD_RECEIVER_HPP

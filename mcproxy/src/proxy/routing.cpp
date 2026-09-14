@@ -162,7 +162,13 @@ routing::~routing()
     HC_LOG_TRACE("");
 
     //clean up all added interfaces
-    for (auto e : m_added_ifs) {
+    // del_vif() erases from m_added_ifs as it goes, so iterating m_added_ifs
+    // directly invalidates the range-for's own iterator mid-loop -- a 100%
+    // reproducible use-after-free on every shutdown with >=1 added interface
+    // (confirmed live: SIGSEGV in std::_Rb_tree_increment via a debugger-less
+    // backtrace). Iterate a copy instead.
+    std::set<unsigned int> ifs_to_remove = m_added_ifs;
+    for (auto e : ifs_to_remove) {
         del_vif(e, m_interfaces->get_virtual_if_index(e));
     }
 }

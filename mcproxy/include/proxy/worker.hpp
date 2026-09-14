@@ -33,6 +33,7 @@
 
 #include <thread>
 #include <memory>
+#include <atomic>
 
 #define WORKER_MESSAGE_QUEUE_DEFAULT_SIZE 150
 
@@ -53,7 +54,7 @@ protected:
     /**
      * @brief The threads runs as long as m_running is true.
      */
-    bool m_running;
+    std::atomic<bool> m_running;
 
     /**
      * @brief Job queue to process proxy_msg.

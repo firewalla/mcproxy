@@ -89,7 +89,11 @@ void worker::join() const
 {
     HC_LOG_TRACE("");
 
-    if (m_thread.get() != nullptr) {
+    // joinable() is false once join() has already succeeded on this thread, so
+    // this is safe to call more than once (proxy_instance::~proxy_instance()
+    // now joins explicitly before its own members are torn down, and this
+    // base destructor joins again as a no-op afterward).
+    if (m_thread.get() != nullptr && m_thread->joinable()) {
         m_thread->join();
     }
 }

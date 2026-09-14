@@ -49,6 +49,21 @@ mld_receiver::mld_receiver(proxy_instance* pr_i, const std::shared_ptr<const mro
     start();
 }
 
+mld_receiver::~mld_receiver()
+{
+    HC_LOG_TRACE("");
+    // Stop and join the receiver thread *before* our own vtable is torn down
+    // (which happens as soon as this destructor body finishes, ahead of
+    // receiver::~receiver() further up the chain). Without this, the receiver
+    // thread can still be inside analyse_packet() -- a virtual call -- while
+    // the base destructor resets the vptr out from under it: a genuine data
+    // race on the vptr, confirmed via ThreadSanitizer. receiver::join() is
+    // idempotent, so the base destructor's own stop()/join() afterward is a
+    // harmless no-op.
+    stop();
+    join();
+}
+
 int mld_receiver::get_iov_min_size()
 {
     HC_LOG_TRACE("");

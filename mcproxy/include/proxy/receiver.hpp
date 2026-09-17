@@ -42,6 +42,7 @@
 #include <mutex>
 #include <memory>
 #include <sstream>
+#include <atomic>
 
 class proxy_instance;
 
@@ -57,7 +58,7 @@ class receiver
 {
 private:
 
-    bool m_running;
+    std::atomic<bool> m_running;
     bool m_in_debug_testing_mode;
     std::unique_ptr<std::thread> m_thread;
 
@@ -67,10 +68,14 @@ private:
 
     std::mutex m_data_lock;
 
+protected:
+    // Protected (not private) so mld_receiver/igmp_receiver can stop() and
+    // join() the receiver thread from their *own* destructors, before their
+    // own vtable is torn down -- see the destructor comments there for why
+    // that ordering matters.
     void stop();
     void join();
 
-protected:
     const proxy_instance * const m_proxy_instance;
 
     int m_addr_family;

@@ -150,7 +150,10 @@ void receiver::join()
 {
     HC_LOG_TRACE("");
 
-    if (m_thread.get() != nullptr) {
+    // Safe to call more than once: mld_receiver/igmp_receiver now join in
+    // their own destructor first, and this base destructor joins again
+    // afterward as a no-op (joinable() is false once join() has succeeded).
+    if (m_thread.get() != nullptr && m_thread->joinable()) {
         m_thread->join();
     }
 }

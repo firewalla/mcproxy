@@ -164,6 +164,14 @@ proxy_instance::~proxy_instance()
 {
     HC_LOG_TRACE("");
     add_msg(std::make_shared<exit_cmd>());
+    // Wait for worker_thread() to actually process the exit_cmd and return
+    // before falling through to this object's own member destructors below
+    // (m_downstreams, m_routing_management, m_receiver, ...). Without this,
+    // worker::~worker()'s own stop()/join() only runs *after* those members
+    // are already gone, so the still-running worker thread can touch freed
+    // state -- confirmed via ThreadSanitizer as a real, live data race, not
+    // just a theoretical one.
+    join();
 }
 
 void proxy_instance::worker_thread()

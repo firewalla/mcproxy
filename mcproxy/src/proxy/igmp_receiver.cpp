@@ -81,6 +81,15 @@ igmp_receiver::igmp_receiver(proxy_instance* pr_i, const std::shared_ptr<const m
     start();
 }
 
+igmp_receiver::~igmp_receiver()
+{
+    HC_LOG_TRACE("");
+    // See mld_receiver::~mld_receiver() for why this must run before our
+    // vtable is torn down; receiver::join() is idempotent.
+    stop();
+    join();
+}
+
 int igmp_receiver::get_iov_min_size()
 {
     HC_LOG_TRACE("");

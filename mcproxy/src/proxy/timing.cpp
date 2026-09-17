@@ -26,6 +26,7 @@
 
 #include <iostream>
 #include <unistd.h>
+#include <vector>
 
 timing::timing():
     m_running(false), m_thread(nullptr)
@@ -45,38 +46,50 @@ void timing::worker_thread()
 {
     HC_LOG_TRACE("");
 
+    // m_db must stay guarded by m_global_lock for the *entire* time it is read
+    // or written, including the emptiness check and the wait deadline below --
+    // previously that check and the wait_until() ran against a throwaway local
+    // mutex while add_time()/stop_all_time() mutated m_db under m_global_lock,
+    // an unsynchronized read-vs-write race on the same std::map (confirmed via
+    // ThreadSanitizer). Holding one unique_lock on m_global_lock across the
+    // loop body, and letting wait_for/wait_until release it while sleeping, is
+    // the correct condition-variable pattern here.
+    std::unique_lock<std::mutex> ull(m_global_lock);
+
     while (m_running) {
 
-        std::mutex lokal_lock;
-        std::unique_lock<std::mutex> ull(lokal_lock);
-
         if (m_db.empty()) {
-            sleep(TIMING_IDLE_POLLING_INTERVAL);
+            m_con_var.wait_for(ull, std::chrono::seconds(TIMING_IDLE_POLLING_INTERVAL));
         } else {
             m_con_var.wait_until(ull, m_db.begin()->first);
         }
 
-        std::lock_guard<std::mutex> lock(m_global_lock);
-
         timing_db_key now = std::chrono::steady_clock::now();
 
+        // Collect due entries while holding m_global_lock, but invoke their
+        // callbacks (and the resulting add_msg()) with the lock released.
+        // Those calls can re-enter timing -- e.g. a timer handler re-arming
+        // itself via add_time() -- and must never do so while this thread
+        // still holds m_global_lock (confirmed via ThreadSanitizer as a real
+        // double-lock, not just a theoretical one).
+        std::vector<timing_db_value> due;
         for (auto it = begin(m_db); it != end(m_db);) {
             if (it->first <= now) {
-                timing_db_value& db_value = it->second;
-                (*std::get<1>(db_value).get())();
-                if (std::get<0>(db_value) != nullptr) {
-                    std::get<0>(db_value)->add_msg(std::get<1>(db_value));
-                }
-
+                due.push_back(std::move(it->second));
                 it = m_db.erase(it);
-                continue;
-
             } else {
                 break;
             }
-
-            ++it;
         }
+
+        ull.unlock();
+        for (auto& db_value : due) {
+            (*std::get<1>(db_value).get())();
+            if (std::get<0>(db_value) != nullptr) {
+                std::get<0>(db_value)->add_msg(std::get<1>(db_value));
+            }
+        }
+        ull.lock();
     }
 }
 

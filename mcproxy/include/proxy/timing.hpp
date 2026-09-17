@@ -39,6 +39,7 @@
 #include <chrono>
 #include <tuple>
 #include <map>
+#include <atomic>
 
 #define TIMING_IDLE_POLLING_INTERVAL 1 //sec
 
@@ -57,7 +58,7 @@ class timing
 private:
     timing_db m_db;
 
-    bool m_running;
+    std::atomic<bool> m_running;
     std::unique_ptr<std::thread> m_thread;
     void worker_thread();
 
